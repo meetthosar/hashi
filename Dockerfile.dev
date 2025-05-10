@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:18-alpine
 
 RUN apk add --no-cache python3 make g++ pkgconfig build-base linux-headers
 
@@ -15,15 +15,12 @@ RUN chown -R node:node /opt/app/
 WORKDIR /opt/app
 
 # Enable debugging port
-EXPOSE 8080
+EXPOSE 9200
 
 # Dont run as root
 USER node
 
-RUN yarn install --frozen-lockfile
+RUN yarn
 RUN yarn build
 
-# Make entrypoint script executable
-RUN chmod +x /opt/app/entrypoint.sh
-
-CMD ["/opt/app/entrypoint.sh"]
+CMD [ "yarn", "start:dev" ]

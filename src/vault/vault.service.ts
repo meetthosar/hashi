@@ -1,5 +1,6 @@
 import { HttpService } from "@nestjs/axios"
 import { Injectable, Logger } from "@nestjs/common"
+import { ConfigService } from "@nestjs/config"
 import { AxiosResponse } from "axios"
 
 export type KeyType = "ed25519" | "ecdsa-p256"
@@ -7,12 +8,18 @@ export type HashAlgorithm = "sha2-256" | "sha2-512"
 
 @Injectable()
 export class VaultService {
-	private latestToken: string
+	private latestToken: string;
+	private vaultBaseUrl: string
 
-	constructor(private readonly httpService: HttpService) {}
+	constructor(
+		private readonly httpService: HttpService,
+		private readonly configService: ConfigService
+	) {
+		this.vaultBaseUrl = this.configService.get<string>("VAULT_BASE_URL")
+	}
 
 	async auth(token: string): Promise<boolean> {
-		const res: AxiosResponse = await this.httpService.axiosRef.get("http://localhost:8200/v1/sys/auth", {
+		const res: AxiosResponse = await this.httpService.axiosRef.get(`${this.vaultBaseUrl}/v1/sys/auth`, {
 			headers: {
 				"X-Vault-Token": token,
 			},
@@ -54,8 +61,11 @@ export class VaultService {
 		// fetch root token
 		// const token: string = JSON.parse(fs.readFileSync("vault-seal-keys.json").toString()).root_token
 		// const sampleKey: string = crypto.randomUUID()
-		const res = await this.httpService.axiosRef.post(
-			`http://localhost:8200/v1/transit/keys/${keyName}`,
+		const transitKeyURL = `${this.vaultBaseUrl}/v1/transit/keys/${keyName}`;
+		let res: AxiosResponse = null;
+		try{
+			res = await this.httpService.axiosRef.post(
+			transitKeyURL,
 			{
 				type: keyType,
 				derived: false,
@@ -64,14 +74,18 @@ export class VaultService {
 			{
 				headers: {
 					"X-Vault-Token": this.latestToken,
+					"Content-Type": "application/json",
 				},
 			}
 		)
+		} catch (error) {
+			Logger.error("Failed to generate keys to vault", "VaultService.keyGen", error)
+		}
 
-		const publicKey: Buffer = Buffer.from(res.data.data.keys["1"].public_key, "base64")
+		const publicKey: Buffer = res && Buffer.from(res.data.data.keys["1"].public_key, "base64")
 
 		// log key created
-		Logger.debug(publicKey.toString("base64"), `VaultService.keyGen`)
+		Logger.debug(publicKey?.toString("base64"), `VaultService.keyGen`)
 		return publicKey
 	}
 
@@ -83,7 +97,7 @@ export class VaultService {
 	 */
 	async sign(keyName: string, data: Buffer, hashAlgorithm: HashAlgorithm, permissionedToken?: string): Promise<Buffer> {
 		const result: AxiosResponse = await this.httpService.axiosRef.post(
-			`http://localhost:8200/v1/transit/sign/${keyName}`,
+			`${this.vaultBaseUrl}/v1/transit/sign/${keyName}`,
 			{
 				input: data.toString("base64"),
 			},

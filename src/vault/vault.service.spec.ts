@@ -3,16 +3,19 @@ import { VaultService } from "../vault/vault.service"
 import { HttpService } from "@nestjs/axios"
 import { Axios } from "axios"
 import { randomBytes } from "crypto"
+import { ConfigService } from "@nestjs/config"
 
 describe("Wallet Service", () => {
 	let vaultService: VaultService
 	let httpServiceMock: jest.Mocked<HttpService>
 	let axiosRefMock: jest.Mocked<Axios>
+	let configServiceMock: jest.Mocked<ConfigService>
 
 	beforeEach(async () => {
 		axiosRefMock = createMockInstance(Axios)
 		httpServiceMock = createMockInstance(HttpService)
-		vaultService = new VaultService(httpServiceMock)
+		configServiceMock = createMockInstance(ConfigService)
+		vaultService = new VaultService(httpServiceMock, configServiceMock)
 	})
 
 	afterEach(() => {
@@ -24,6 +27,7 @@ describe("Wallet Service", () => {
 		axiosRefMock.get.mockResolvedValueOnce({
 			status: 200,
 		})
+		configServiceMock.get.mockReturnValueOnce(token)
 
 		Object.defineProperty(httpServiceMock, "axiosRef", {
 			value: axiosRefMock,

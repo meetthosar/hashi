@@ -119,6 +119,16 @@ If an error message is displayed along side the LOG messages, please check the `
 
 Submit each command individually. This is just a demonstration of the steps involved in crafting and sending a transaction.
 
+## 5. Setup / Boot Vault in Production Mode(Using Docker)
+
+```bash
+# Install local deps
+$ yarn
+
+# Launch Vault
+$ docker-compose up -d --build
+``` 
+
 
 ### Get Wallet Instance
 ```ts

@@ -1,4 +1,4 @@
-node_modules/*
+node_modules
 !node_modules/.gitkeep
 dist/*
 test/coverage
@@ -9,3 +9,4 @@ data/
 volumes/logs
 volumes/file
 vault-seal-keys.json
+.DS_Store

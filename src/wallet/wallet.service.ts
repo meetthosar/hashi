@@ -5,6 +5,7 @@ import base32 from "hi-base32"
 import { HttpService } from "@nestjs/axios"
 import { ConfigService } from "@nestjs/config"
 import { AxiosResponse } from "axios"
+import * as fs from "fs";
 
 @Injectable()
 export class WalletService implements OnModuleInit {
@@ -14,7 +15,8 @@ export class WalletService implements OnModuleInit {
 	 *
 	 */
 	async onModuleInit() {
-		await this.auth(this.configService.get<string>("VAULT_TOKEN"))
+		const rootToken: string = JSON.parse(fs.readFileSync('vault-seal-keys.json').toString()).root_token
+		await this.auth(rootToken)
 	}
 
 	/**

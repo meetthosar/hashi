@@ -1,17 +1,22 @@
 import * as fs from "fs";
 import axios from 'axios'
+import * as dotenv from "dotenv";
+dotenv.config();
 
-// log command arguments
-console.log(`args : ${process.argv}`)
-
-// arg of index 2 is the path to store the vault seal keys
-const vaultSealKeysPath: string = process.argv[2]
+const VAULT_BASE_URL = process.env.VAULT_BASE_URL;
+console.log('VAULT base url: ', VAULT_BASE_URL);
 
 // init vault POST request
-axios.post('http://localhost:8200/v1/sys/init', {
+axios.post(`${VAULT_BASE_URL}/v1/sys/init`, {
   secret_shares: 1,
   secret_threshold: 1
+},
+{
+  headers: {
+    "Content-Type": "application/json",
+  },
 }).then(async (result) => {
+  console.log('Vault Seal JSON data: ', result.data);
   fs.writeFileSync("vault-seal-keys.json", JSON.stringify(result.data));
     
   var keys = result.data.keys;
@@ -20,12 +25,13 @@ axios.post('http://localhost:8200/v1/sys/init', {
   console.log(`token : ${token}`)
 
   // unseal vault server
-  const unsealResult = await axios.post('http://localhost:8200/v1/sys/unseal', {
+  const unsealResult = await axios.post(`${VAULT_BASE_URL}/v1/sys/unseal`, {
     secret_shares: 1,
     key: keys[0]
   }, {
     headers: {
-      'X-Vault-Token': token
+      'X-Vault-Token': token,
+      "Content-Type": "application/json",
     }
   });
 
@@ -35,14 +41,19 @@ axios.post('http://localhost:8200/v1/sys/init', {
   // notify success
   console.log(`vault is unsealed`)
 }).catch(err => {
-  console.log(`failed to init. Trying to unseal if already initialized...`)
+  console.log(`failed to init. Trying to unseal if already initialized...`, err)
 
   // trying to unseal
   const firstKey: string = JSON.parse(fs.readFileSync('vault-seal-keys.json').toString()).keys[0]
 
-  axios.post('http://localhost:8200/v1/sys/unseal', {
+  axios.post(`${VAULT_BASE_URL}/v1/sys/unseal`, {
     secret_shares: 1,
     key: firstKey
+  },
+  {
+    headers: {
+      "Content-Type": "application/json",
+    },
   }).then(async (result) => {
     // check if unsealed
     if(result.data.sealed) throw new Error('vault is not unsealed')

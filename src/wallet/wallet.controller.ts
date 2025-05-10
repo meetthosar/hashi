@@ -1,4 +1,4 @@
-import { Controller, Logger, Post, Body } from "@nestjs/common"
+import { Controller, Logger, Post, Body, BadRequestException } from "@nestjs/common"
 import { WalletService } from "./wallet.service"
 import { EncoderFactory } from "../chain/encoder.factory"
 import { Crafter } from "../chain/crafter.role"
@@ -23,9 +23,13 @@ export class Wallet {
 	 * @returns
 	 */
 	@Post("address")
-	async getAddress(@Body() body: { key: string }, encoding: "algorand" = "algorand", index: number = 0): Promise<{ address: string}> {
+	async getAddress(@Body() body: { key: string }): Promise<{ address: string}> {
+		console.log('Received request:', body);
+		if (!body || !body.key) {
+			throw new BadRequestException("Invalid input: key is required");
+		}
 		const publicKey: Buffer = await this.walletService.getPublicKey(body.key)
-		return { address : EncoderFactory.getEncoder(encoding).encodeAddress(publicKey)}
+		return { address : EncoderFactory.getEncoder("algorand").encodeAddress(publicKey)}
 	}
 
 	/**

@@ -1,9 +1,10 @@
 import { HttpModule } from "@nestjs/axios"
 import { Module } from "@nestjs/common"
 import { VaultService } from "./vault.service"
+import { ConfigModule } from "@nestjs/config"
 
 @Module({
-	imports: [HttpModule],
+	imports: [HttpModule, ConfigModule.forRoot()],
 	controllers: [],
 	providers: [VaultService],
 	exports: [VaultService],
