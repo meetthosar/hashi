@@ -630,7 +630,7 @@ export class TransactionService implements OnModuleInit {
             type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out',
             params: any
         }>
-    ): Promise<{ txnId: string, error: string }> {
+    ): Promise<{ txnIds: Array<string>, error: string }> {
         try {
             const publicKey: Buffer = await this.walletService.getPublicKey(from);
             const fromAddr = EncoderFactory.getEncoder("algorand").encodeAddress(publicKey);
@@ -753,16 +753,16 @@ export class TransactionService implements OnModuleInit {
                 
                 const txnId = await this.walletService.submitTransaction(bytestoSubmit);
                 
-                return { txnId, error: null };
+                return { txnIds: [txnId], error: null };
             } catch (error) {
                 console.error('Error in group transaction processing:', error);
-                return { txnId: null, error: error.message || 'Unknown error in group transaction' };
+                return { txnIds: [], error: error.message || 'Unknown error in group transaction' };
             }
             
         } catch (error) {
             console.error('Error in groupTransaction:', error);
             const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-            return { txnId: '', error: errorMessage };
+            return { txnIds: [], error: errorMessage };
         }
     }
 }

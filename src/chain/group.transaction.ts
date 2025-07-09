@@ -54,14 +54,7 @@ export class GroupTransaction {
       }
 
     computeGroupID(txns: any[]): Uint8Array {
-        const hashes: Uint8Array[] = [];
-        for (const txn of txns) {
-          hashes.push(this.rawTxID(txn));
-        }
-      
-        const toBeHashed = this.txGroupPreimage(hashes);
-        const gid = sha512.sha512_256.array(toBeHashed) //nacl.hash(toBeHashed);
-        return Uint8Array.from(gid);
+       return new AlgorandEncoder().computeGroupId(txns);
       }
 
     assignGroupID(txns: any[]) {

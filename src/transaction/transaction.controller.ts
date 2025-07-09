@@ -248,24 +248,20 @@ export class Transaction {
     /**
      * Creates a transaction group with multiple transaction types in the specified order
      */
-    @Post("group-transaction")
-    async groupTransaction(@Body() body: { 
-        from: string, 
-        transactions: Array<{
-            type: 'payment' | 'application' | 'asset-transfer' | 'asset-create',
-            params: any
-        }>
-    }): Promise<{ txnId: string, error: string }> {
-        return await this.txnService.groupTransaction(
-            body.from,
-            body.transactions
-        );
-    }
+    // @Post("group-transaction")
+    // async groupTransaction(@Body() body: { 
+    //     from: string, 
+    //     transactions: Array<{
+    //         type: 'payment' | 'application' | 'asset-transfer' | 'asset-create',
+    //         params: any
+    //     }>
+    // }): Promise<{ txnId: string, error: string }> {
+    //     return await this.txnService.groupTransaction(
+    //         body.from,
+    //         body.transactions
+    //     );
+    // }
 
-    /**
-     * Example of a group transaction with payment and asset transfer
-     * This demonstrates how to create a predefined group transaction
-     */
     @Post("example-group-transaction")
     async exampleGroupTransaction(@Body() body: { 
         from: string,
@@ -296,130 +292,14 @@ export class Transaction {
                 }
             }
         ];
-        
-        return await this.txnService.groupTransactionWithAlgosdk(
-            'test',
-            transactions
-        );
+             
 
-        // return await this.txnService.groupTransaction(
-        //     body.from,
-        //     transactions
-        // );
-    }
-
-    @Post("example-asset-creation-with-application-creation-1")
-    async exampleAssetCreationWithApplicationCreation1(): Promise<any> {
-
-        // const d = 2 ** 53 - 1
-    
-        const algosTransferAnd = [
-          {
-            type: 'asset-create' as const,
-            params: {
-              total: 3,
-              decimals: 0,
-              defaultFrozen: false,
-              unitName: "REM",
-              assetName: 'rem',
-            },
-          },
-          {
-            type: "application" as const,
-            params: {
-              fee: 1000,
-              appIndex: 0,
-              appArgs: [
-                new Uint8Array(
-                  sha512_256.array(Buffer.from("create_application(uint64,uint64)void")).slice(0, 4)
-                ),
-                algosdk.encodeUint64(0),
-                algosdk.encodeUint64(100),
-              ],
-            },
-          },
-          ,
-        ];
-        return await this.txnService.groupTransactionWithAlgosdk(
-          'test',
-          algosTransferAnd)
-      }
-
-    @Post("example-group-transaction-1")
-    async exampleGroupTransaction_1(): Promise<{ txnIds: string[], error: string }> {
-        // Create a group transaction with two transactions:
-        // 1. A payment transaction
-        // 2. An asset transfer transaction
-        
-        const transactions = [
-            {
-                type: 'payment' as const,
-                params: {
-                    to: '5OD3JPPNBR2PYDCB2I2XJVW7FVPA7A6ECM3GXG5H6OOIG2HJLMS7SSPFKI',//body.receiverAddress,
-                    amount: 100000//body.amount
-                }
-            },
-            {
-                type: 'payment' as const,
-                params: {
-                    to: 'V5LR6C5SVHBQY3SPTEPD5WEGNBBUDNEP2MSDIONQIODZXZHRMC6QF3CTZI',//body.receiverAddress,
-                    amount: 100000//body.amount
-                }
-            }
-        ];
-        
-        return await this.txnService.groupTransactionWithAlgosdk(
-            'test',
+        return await this.txnService.groupTransaction(
+            body.from,
             transactions
         );
     }
 
-    async exampleTransaction(): Promise<void> {
-        const algorand = this.txnService.algorand("testnet")
-        const transaction = await algorand.client.indexer.lookupTransactionByID('WIQFQF4PNGQGMW6GSQDNMTHKWQLA2T224COXAO5PGQNPHQMJ2ROA').do();
-        
-        console.log(transaction.transaction.innerTxns[0].createdAssetIndex);
-        
-    }
-    
-    @Get("group-transactions/:groupId")
-    async getGroupTransactions(@Param('groupId') groupId: string): Promise<any> {
-        try {
-            // Get the Algorand client
-            const algorand = this.txnService.algorand("testnet");
-            
-            // Search for transactions with this group ID
-            const response = await algorand.client.indexer
-                .searchForTransactions()
-                .do();
-                
-            // Filter manually for transactions with matching group ID
-            // Group ID can be in base64 or hex format
-            const matchingTxns = response.transactions.filter(tx => {
-                if (!tx.group) return false;
-                
-                // Convert the group ID to both formats for comparison
-                const txGroupBase64 = Buffer.from(tx.group).toString('base64');
-                const txGroupHex = Buffer.from(tx.group).toString('hex');
-                
-                return txGroupBase64 === groupId || txGroupHex === groupId;
-            });
-                
-            return matchingTxns;
-        } catch (error) {
-            console.error('Error fetching group transactions:', error);
-            return { error: error.message || 'Error fetching group transactions' };
-        }
-    }
-
-    getLocalAlgodClient() {
-        const algodToken = 'a'.repeat(64);
-        const algodServer = 'http://localhost';
-        const algodPort = process.env.ALGOD_PORT || '4001';
-      
-        const algodClient = new algosdk.Algodv2(algodToken, algodServer, algodPort);
-        return algodClient;
-      }
 
     async algosdkGroupTransaction(@Body() body: {   
     }): Promise<{ txnId: string, error: string }> {
@@ -549,41 +429,6 @@ export class Transaction {
         )
 
 
-    }
-
-
-    @Post('get-mnemonic')
-    async getmnemonic(key: string): Promise<{ mnemonic: string, account: string }> {
-        const keyData = {
-            "keys": {
-              "1": "WdFevOFp0vDQ5GXPVGmhYo3awV/toltf3esDC4TQwPZfswt8Dbk049IyCY6xpq5/veGkn6ZQQ+E72XwTAHUgWw=="
-            },
-            "type": "ed25519",
-            "name": "superadmin1"
-          };
-  
-        // Extract the key material (base64-encoded)
-        const keyBase64 = keyData.keys["1"];
-        
-        // Decode the base64 key
-        const keyBytes = Buffer.from(keyBase64, 'base64');
-        
-        // For ed25519 keys, the first 32 bytes are the private key
-        const seed = keyBytes.slice(0, 32);
-        
-        // Generate the keypair using nacl
-        const keyPair = nacl.sign.keyPair.fromSeed(seed);
-        
-        // Algorand expects a 64-byte private key (private + public concatenated)
-        const algoSecretKey = new Uint8Array(64);
-        algoSecretKey.set(keyPair.secretKey.slice(0, 32));
-        algoSecretKey.set(keyPair.publicKey, 32);
-        
-        // Get Algorand mnemonic and address
-        const mnemonic = algosdk.secretKeyToMnemonic(algoSecretKey);
-        const account = algosdk.encodeAddress(keyPair.publicKey);
-        
-        return { mnemonic, account };
     }
 
 }
