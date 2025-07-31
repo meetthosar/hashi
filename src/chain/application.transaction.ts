@@ -38,8 +38,8 @@ export class ApplicationCall {
     
     // encode the transaction
     encode(): Uint8Array {
-        const encoded: Uint8Array = new AlgorandEncoder().encodeTransaction(this)
-		return encoded
+        // const encoded: Uint8Array = new AlgorandEncoder().encodeTransaction(this)
+		return new Uint8Array()
     }
 }
 

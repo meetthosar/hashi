@@ -4,12 +4,12 @@ import { AppController } from "./app.controller"
 import { VaultModule } from "./vault/vault.module"
 import { WalletService } from "./wallet/wallet.service"
 import { HttpModule, HttpService } from "@nestjs/axios"
-import { ConfigService } from "@nestjs/config"
+import { ConfigModule, ConfigService } from "@nestjs/config"
 import { Transaction } from "algosdk"
 import { TransactionService } from "./transaction/transaction.service"
 import { AlgorandTransactionCrafter } from '@algorandfoundation/algo-models'
 import { TransactionModule } from "./transaction/transaction.module"
-import { AlgoTxCrafter, CrafterFactory } from "src/chain/crafter.factory"
+// import { AlgoTxCrafter, CrafterFactory } from "src/chain/crafter.factory"
 import { AlgorandClient, Config } from '@algorandfoundation/algokit-utils'
 
 function configuredModules(): Array<Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference> {
@@ -30,11 +30,11 @@ function configuredModules(): Array<Type<any> | DynamicModule | Promise<DynamicM
 }
 
 @Module({
-	imports: [WalletModule, VaultModule, HttpModule, TransactionModule], // ...configuredModules()
+	imports: [ConfigModule.forRoot({ isGlobal: true }), WalletModule, VaultModule, HttpModule, TransactionModule], // ...configuredModules()
 	controllers: [],
 	providers: [
 		WalletService,
-		ConfigService,
+		ConfigService,	
 		TransactionService,
 		AlgorandTransactionCrafter,
 		String,
@@ -43,5 +43,3 @@ function configuredModules(): Array<Type<any> | DynamicModule | Promise<DynamicM
 })
 export class AppModule {}
 
-
-//ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),

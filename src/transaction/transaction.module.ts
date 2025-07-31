@@ -1,6 +1,6 @@
 import { HttpModule } from "@nestjs/axios"
 import { Module } from "@nestjs/common"
-import { Transaction } from "./transaction.controller"
+import { AssetConfig } from "./transaction.acfg.controller"
 import { WalletService } from "../wallet/wallet.service"
 import { VaultModule } from "src/vault/vault.module"
 import { VaultService } from "src/vault/vault.service"
@@ -12,7 +12,7 @@ import { AlgorandTransactionCrafter } from '@algorandfoundation/algo-models'
 
 @Module({
     imports: [HttpModule, VaultModule, ChainModule, ConfigModule.forRoot()],
-    controllers: [Transaction],
+    controllers: [AssetConfig],
     providers: [WalletService, VaultService, TransactionService, AlgorandTransactionCrafter, String, Object],
 })
 

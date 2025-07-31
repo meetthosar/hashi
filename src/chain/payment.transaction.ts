@@ -31,7 +31,8 @@ export class PaymentTransaction {
      * @returns Encoded transaction as Uint8Array
      */
     encode(): Uint8Array {
-        return new AlgorandEncoder().encodeTransaction(this);
+        // return new AlgorandEncoder().encodeTransaction(this);
+        return new Uint8Array()
     }
 }
 
