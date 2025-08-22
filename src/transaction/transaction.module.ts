@@ -11,11 +11,12 @@ import { AlgorandTransactionCrafter } from '@algorandfoundation/algo-models'
 import { Payment } from "./transaction.pay.controller"
 import { AssetTransfer } from "./transaction.axfer.controller"
 import { ApplicationCall } from "./transaction.appl.controller"
+import { GroupTransaction } from "./transaction.group.controller"
 // import { AlgoTxCrafter, CrafterFactory } from "src/chain/crafter.factory"
 
 @Module({
     imports: [HttpModule, VaultModule, ChainModule, ConfigModule.forRoot()],
-    controllers: [AssetConfig, Payment, AssetTransfer, ApplicationCall],
+    controllers: [AssetConfig, Payment, AssetTransfer, ApplicationCall, GroupTransaction],
     providers: [WalletService, VaultService, TransactionService, AlgorandTransactionCrafter, String, Object],
 })
 

@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
 import { VaultService } from "../vault/vault.service"
 import { HttpService } from "@nestjs/axios"
 import { ConfigService } from "@nestjs/config"
-import { AlgorandEncoder, AlgorandTransactionCrafter, AssetParamsBuilder } from '@algorandfoundation/algo-models'
+import { AlgorandEncoder, AlgorandTransactionCrafter, AssetParamsBuilder, ApplicationCallTxBuilder, StateSchema, ApplicationCallTransaction } from '@algorandfoundation/algo-models'
 // import { AssetParams, AssetParamsBuilder } from "src/chain/algorand.asset.params";
 import { WalletService } from "../wallet/wallet.service"
 import { EncoderFactory } from "../chain/encoder.factory"
@@ -13,6 +13,7 @@ import { algo, AlgorandClient, Config } from '@algorandfoundation/algokit-utils'
 import { encode } from "punycode"
 import { type } from "os"
 import { concatArrays } from "../utils/utils"
+import { sha512_256 } from "js-sha512"
 
 
 interface Assetparams {
@@ -767,4 +768,157 @@ export class TransactionService implements OnModuleInit {
     //         return { txnIds: [], error: errorMessage };
     //     }
     // }
+
+    /**
+     * Create an Algorand application call transaction
+     * @param params Application call parameters
+     * @returns Transaction ID, application ID, and any error information
+     */
+    async applicationCall(params: {
+        from: string,
+        approvalProgram: string,
+        clearProgram: string,
+        globalSchema: { numUint: number, numByteSlice: number },
+        localSchema: { numUint: number, numByteSlice: number },
+        methodName?: string,
+        methodArgs?: string, // JSON string of arguments
+        applicationId?: number
+    }): Promise<{ txn : ApplicationCallTransaction | null, error: string | undefined } > {
+        try {
+            // Validate input
+            if (!params.from) {
+                return { txn: null, error: 'Sender address (from) is required' };
+            }
+
+            if (!params.approvalProgram) {
+                return { txn: null, error: 'Approval program is required' };
+            }
+
+            if (!params.clearProgram) {
+                return { txn: null, error: 'Clear program is required' };
+            }
+
+            if (!params.globalSchema) {
+                return { txn: null, error: 'Global schema is required' };
+            }
+
+            if (!params.localSchema) {
+                return { txn: null, error: 'Local schema is required' };
+            }
+
+            // Parse method arguments if provided
+            let methodArgs: any[] = [];
+            if (params.methodArgs) {
+                try {
+                    methodArgs = JSON.parse(params.methodArgs);
+                } catch (error) {
+                    return { txn: null, error: 'Invalid JSON in methodArgs' };
+                }
+            }
+
+            // Extract approval and clear programs from bytecode
+            const approvalProgram = params.approvalProgram 
+                    ? algosdk.base64ToBytes(params.approvalProgram) 
+                    : new Uint8Array(0);
+            const clearProgram = params.clearProgram 
+                    ? algosdk.base64ToBytes(params.clearProgram) 
+                    : new Uint8Array(0);
+
+            if (!approvalProgram || !clearProgram) {
+                return { txn: null, error: 'Approval and clear programs are required' };
+            }
+
+            // Extract schema information - only set non-zero values
+            let globalSchema: StateSchema | undefined;
+            if (params.globalSchema && (params.globalSchema.numUint > 0)) {
+                globalSchema = {
+                    nui: Number(params.globalSchema.numUint) > 0 ? Number(params.globalSchema.numUint) : 0,
+                };
+            }
+
+            if (params.globalSchema && (params.globalSchema.numByteSlice > 0)) {
+                globalSchema = {
+                    nbs: Number(params.globalSchema.numByteSlice) > 0 ? Number(params.globalSchema.numByteSlice) : 0
+                };
+            }
+
+            let localSchema: StateSchema | undefined;
+            if (params.localSchema && (params.localSchema.numUint > 0)) {
+                localSchema = {
+                    nui: Number(params.localSchema.numUint) > 0 ? Number(params.localSchema.numUint) : 0,
+                };
+            }
+
+            if (params.localSchema && (params.localSchema.numByteSlice > 0)) {
+                localSchema = {
+                    nbs: Number(params.localSchema.numByteSlice) > 0 ? Number(params.localSchema.numByteSlice) : 0
+                };
+            }
+
+            // Check if this is a bare application creation (no method call)
+            const isBareCreation = params.methodName == null || params.methodName == undefined || params.methodName == "";
+            
+            let encodedArgs: Uint8Array[] = [];
+            
+            if (!isBareCreation && params.methodName) {
+                // Create method selector (first 4 bytes of SHA-512/256 hash)
+                const methodSelector = new Uint8Array(sha512_256.array(Buffer.from(params.methodName)).slice(0, 4));
+                encodedArgs = [methodSelector];
+                
+                if (methodArgs && methodArgs.length > 0) {
+                    for (let i = 0; i < methodArgs.length; i++) {
+                        const arg = methodArgs[i][1];
+                        if (arg === 'uint64') {
+                            encodedArgs.push(algosdk.encodeUint64(methodArgs[i][0]));
+                        } else if (arg === 'string') {
+                            encodedArgs.push(new Uint8Array(Buffer.from(methodArgs[i][0])));
+                        } else {
+                            // Default encoding for other types
+                            encodedArgs.push(new Uint8Array(Buffer.from(methodArgs[i][0])));
+                        }
+                    }
+                }
+            } else if (!isBareCreation) {
+                return { txn: null, error: 'Either provide a methodName or ensure the contract supports bare creation with NoOp' };
+            }
+
+            // Get sender address and suggested parameters
+            const fromAddr = await this.get_public_key({ from: params.from });
+            const suggestedParams = await this.getSuggestedParams();
+
+            // Create application call transaction using ApplicationTxBuilder directly
+            let applicationCallTransaction = new ApplicationCallTxBuilder(this.genesisId, this.genesisHash)
+                .addSender(fromAddr)
+                .addApprovalProgram(approvalProgram)
+                .addClearStateProgram(clearProgram)
+                .addFirstValidRound(BigInt(suggestedParams.firstValid))
+                .addLastValidRound(BigInt(suggestedParams.lastValid))
+                .addFee(BigInt(Number(suggestedParams.fee) < 1000 ? 1000 : suggestedParams.fee));
+
+            // Add global and local schema only if they have non-zero values
+            if (globalSchema) {
+                applicationCallTransaction = applicationCallTransaction.addGlobalSchema(globalSchema);
+            }
+            if (localSchema) {
+                applicationCallTransaction = applicationCallTransaction.addLocalSchema(localSchema);
+            }
+
+            // Add application arguments if any
+            if (encodedArgs && encodedArgs.length > 0) {
+                applicationCallTransaction = applicationCallTransaction.addApplicationArgs(encodedArgs);
+            }
+
+            if (params.applicationId > 0 || params.applicationId !== undefined) {
+                applicationCallTransaction.addApplicationId(BigInt(params.applicationId));
+            }
+
+            const txn = applicationCallTransaction.get();
+            return {txn : txn, error : null};
+
+        } catch (error) {
+            console.error('Error in applicationCall:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+            return { txn : null, error : errorMessage };
+        }
+    }
 }
