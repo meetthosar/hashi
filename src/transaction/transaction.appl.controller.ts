@@ -18,13 +18,14 @@ export class ApplicationCall {
     async createApplication(
         @Body() body: {
             from: string,
-            approvalProgram: string,
-            clearProgram: string,
-            globalSchema: { numUint: number, numByteSlice: number },
-            localSchema: { numUint: number, numByteSlice: number },
+            approvalProgram?: string,
+            clearProgram?: string,
+            globalSchema?: { numUint: number, numByteSlice: number },
+            localSchema?: { numUint: number, numByteSlice: number },
             methodName?: string,
             methodArgs?: string // JSON string of arguments
             applicationId?: number
+            onComplete?: number
         }
     ): Promise<{ txnId: string, applicationId: number, error: string }> {
         try {
@@ -36,9 +37,12 @@ export class ApplicationCall {
             localSchema: body.localSchema,
             methodName: body.methodName,
             methodArgs: body.methodArgs,
-            applicationId: body.applicationId
+            applicationId: Number(body.applicationId),
+            onComplete: body.onComplete
         });
-        const encodedTxn = txn.txn.encode();
+        console.log(txn);
+        
+        const encodedTxn = txn.txn.get().encode();
 
             // Sign and submit the transaction
             const txnId = await this.transactionService.signAndSubmitTransaction(encodedTxn, body.from);
