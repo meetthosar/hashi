@@ -516,15 +516,33 @@ export class TransactionService implements OnModuleInit {
                         break;
                     case 'application':
                         // Application call transaction using algosdk
-                        const appArgs = txConfig.params.appArgs ? 
-                            txConfig.params.appArgs.map(arg => new Uint8Array(Buffer.from(arg))) : 
-                            [];
+                        const appArgs: Uint8Array[] = (txConfig.params.appArgs || []).map((arg: any) => {
+                            if (arg instanceof Uint8Array) return arg;
+                            if (typeof arg === 'string') {
+                                try {
+                                    const b = Buffer.from(arg, 'base64');
+                                    return b.length > 0 ? new Uint8Array(b) : new Uint8Array(Buffer.from(arg));
+                                } catch {
+                                    return new Uint8Array(Buffer.from(arg));
+                                }
+                            }
+                            return new Uint8Array(arg);
+                        });
                         console.log(appArgs);
-                        
+
                         const accounts = txConfig.params.accounts || [];
+                        // Normalize boxes if provided: { appIndex: number, name: Uint8Array | string }
+                        const boxes = (txConfig.params.boxes || []).map((bx: any) => ({
+                            appIndex: Number(bx.appIndex),
+                            name: (bx.name instanceof Uint8Array)
+                                ? bx.name
+                                : new Uint8Array(Buffer.from(bx.name, typeof bx.name === 'string' ? 'base64' : undefined))
+                        }));
 
                         var sp = suggestedParams;
-                        sp.fee = BigInt(txConfig.params.fee)
+                        if (txConfig.params.fee) {
+                            sp.fee = BigInt(txConfig.params.fee);
+                        }
 
                         txObject = algosdk.makeApplicationNoOpTxnFromObject({
                             sender: fromAddr,
@@ -533,6 +551,7 @@ export class TransactionService implements OnModuleInit {
                             accounts: accounts,
                             foreignApps: txConfig.params.foreignApps || [],
                             foreignAssets: txConfig.params.foreignAssets || [],
+                            boxes: boxes,
                             suggestedParams: sp,})
                         break;
                     case 'asset-transfer':
@@ -633,147 +652,8 @@ export class TransactionService implements OnModuleInit {
         }
     }
     
-    // async groupTransaction(
-    //     from: string,
-    //     transactions: Array<{
-    //         type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out',
-    //         params: any
-    //     }>
-    // ): Promise<{ txnIds: Array<string>, error: string }> {
-    //     try {
-    //         const publicKey: Buffer = await this.walletService.getPublicKey(from);
-    //         const fromAddr = EncoderFactory.getEncoder("algorand").encodeAddress(publicKey);
-    //         const suggestedParams = await this.getSuggestedParams();
-            
-    //         // Get the crafter      
-    //         const crafter = CrafterFactory.getCrafter("algorand", this.configService);
-            
-    //         // Create individual transactions based on their type
-    //         const txObjects = [];
-            
-    //         for (const txConfig of transactions) {
-    //             let txObject;
-                
-    //             switch (txConfig.type) {
-    //                 case 'payment':
-    //                     // Payment transaction
-    //                     const paymentParams = txConfig.params;
-    //                     txObject = await this.makePaymentTxn(from, paymentParams.to, paymentParams.amount, suggestedParams);
-    //                     break;
-                        
-    //                 case 'application':
-    //                     // Application call transaction
-    //                     const appParams = txConfig.params;
-                        
-    //                     txObject = await this.applicationCallTxn({
-    //                         from: from,
-    //                         appIndex: appParams.appIndex || 0,
-    //                         approvalProgram: appParams.approvalProgram,
-    //                         clearProgram: appParams.clearProgram,
-    //                         globalSchema: appParams.globalSchema,
-    //                         localSchema: appParams.localSchema,
-    //                         appArgs: appParams.appArgs || [],
-    //                         foreignApps: appParams.foreignApps || [],
-    //                         foreignAssets: appParams.foreignAssets || [],
-    //                         accounts: appParams.accounts || [],
-    //                         fee: appParams.fee || 1000
-    //                     });
-    //                     break;
-                        
-    //                 case 'asset-transfer':
-    //                     // Asset transfer transaction
-    //                     const assetParams = txConfig.params;
-    //                     txObject = await this.transferTokenTxn({
-    //                         from: from,
-    //                         to: assetParams.receiver,
-    //                         amount: assetParams.amount,
-    //                         assetId: assetParams.assetId
-    //                     });
-                    
-    //                     break;
-                        
-    //                 case 'asset-create':
-    //                     // Asset creation transaction
-    //                     const createParams = txConfig.params;
-    //                     txObject = await this.assetConfigTxn(
-    //                         createParams, 
-    //                         from, 
-    //                         createParams.assetName, 
-    //                         createParams.decimals, 
-    //                         createParams.totalSupply
-    //                     );
-    //                     break;
-
-    //                 case 'opt-in':
-    //                     // Asset opt-in transaction
-    //                     const optInParams = txConfig.params;
-    //                     txObject = await this.optInAssetTxn({
-    //                         from: from,
-    //                         assetId: optInParams.assetId
-    //                     });
-    //                     break;
-
-    //                 case 'opt-out':
-    //                     // Asset opt-out transaction
-    //                     const optOutParams = txConfig.params;
-    //                     txObject = await this.optOutAssetTxn({
-    //                         from: from,
-    //                         assetId: optOutParams.assetId,
-    //                         close: optOutParams.closeTo
-    //                     });
-    //                     break;  
-                        
-    //                 default:
-    //                     throw new Error(`Unsupported transaction type: ${txConfig.type}`);
-    //             }
-                
-    //             txObjects.push(txObject);
-    //         }
-            
-    //         // Group the transactions
-    //         const groupTx = crafter.groupTransaction(
-    //             fromAddr,
-    //             BigInt(suggestedParams.firstValid),
-    //             BigInt(suggestedParams.lastValid),
-    //             txObjects
-    //         ).get();
-            
-    //         const encodedTxns = groupTx.encodeAll();       
-                        
-            
-    //         const signedTxns = [];
-            
-    //         // First sign all transactions
-    //         for (let i = 0; i < encodedTxns.length; i++) {
-    //             try {
-    //                 const signedTxn = await this.sign(encodedTxns[i], from);
-    //                 const ready = await this.txnCrafter.addSignature(encodedTxns[i], signedTxn);    
-    //                 signedTxns.push(ready);
-    //             } catch (error) {
-    //                 console.error(`Error signing transaction ${i+1}:`, error);
-    //                 throw new Error(`Failed to sign transaction ${i+1}: ${error.message}`);
-    //             }
-    //         }
-            
-    //         // // Now submit all transactions as a group
-    //       try {
-
-    //             const bytestoSubmit = concatArrays(...signedTxns);
-                
-    //             const txnId = await this.walletService.submitTransaction(bytestoSubmit);
-                
-    //             return { txnIds: [txnId], error: null };
-    //         } catch (error) {
-    //             console.error('Error in group transaction processing:', error);
-    //             return { txnIds: [], error: error.message || 'Unknown error in group transaction' };
-    //         }
-            
-    //     } catch (error) {
-    //         console.error('Error in groupTransaction:', error);
-    //         const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-    //         return { txnIds: [], error: errorMessage };
-    //     }
-    // }
+   
+    
 
     /**
      * Create an Algorand application call transaction
