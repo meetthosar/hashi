@@ -8,6 +8,8 @@ import { ApiTags } from "@nestjs/swagger";
 import { get } from "http";
 import { concatArrays } from "../utils/utils";
 import { WalletService } from "../wallet/wallet.service";
+import { sha512_256 } from "js-sha512";
+import * as algosdk from "algosdk";
 
 @ApiTags('Transaction')
 @Controller()
@@ -29,52 +31,69 @@ export class GroupTransaction {
             from: string,
             transactions: Array<{ type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out', params: any }>,
         }
-    ): Promise<{ txnId: string, error: string }> {
-        // const transactions = [
-        //                 {
-        //                     type: 'payment' as const,
-        //                     params: {
-        //                         to: 'O3KJ7QUIEA3BGIDGJ6CRR7NMAKBFX4S4DK5QKNJNZDMUPECOZ5T4MFIULQ',//body.receiverAddress,
-        //                         amount: 202000//body.amount
-        //                     }
-        //                 },
-        //                 {
-        //                     type: 'application' as const,
-        //                     params: {
-        //                         appIndex: 739832186,
-        //                         appArgs: [new Uint8Array(sha512_256.array(Buffer.from("opt_in_to_asset(pay)void")).slice(0, 4))],
-        //                         // accounts: ['5OD3JPPNBR2PYDCB2I2XJVW7FVPA7A6ECM3GXG5H6OOIG2HJLMS7SSPFKI'],
-        //                         foreignAssets: [737154202],
-        //                         fee: 2000
-        //                     }
-        //                 }
-        //             ];
-        return await this.craftGroupTransaction(body.from, body.transactions);
+    ): Promise<{ txnIds: string[], error: string }> {
+        // const transactions1: Array<{ type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out', params: any }> = [
+        //       { type: "payment", params: { to: "46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM", amount: 101000 } },
+        //     //   { type: "opt-in", params: { assetId: 1140 } },
+        //       { type: "application", params: { applicationId: 1142, 
+        //         methodName: "opt_in_activity_token(pay,uint64)void", methodArgs: [[1156, "uint64"]], 
+        //         accounts: ["46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM"],
+        //         foreignApps: [1142],appArgs: [new Uint8Array(sha512_256.array(Buffer.from("opt_in_activity_token(pay,uint64)void")).slice(0, 4)), algosdk.encodeUint64(1156)],
+        //         foreignAssets: [1156] } },
+        //     ]
+            // const transactions1: Array<{ type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out', params: any }> = [
+            //     { type: "payment", params: { to: "46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM", amount: 101000 } },
+            //   //   { type: "opt-in", params: { assetId: 1140 } },
+            //     { type: "application", params: { appIndex: 1142, 
+            //         fee: 2000,
+            //         appArgs: [new Uint8Array(sha512_256.array(Buffer.from("opt_in_activity_token(pay,uint64)void")).slice(0, 4)), algosdk.encodeUint64(1155)],
+            //     //   methodName: "opt_in_activity_token(pay, uint64)void", methodArgs: [[1140, "uint64"]], 
+            //       accounts: ["46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM"],
+            //       foreignApps: [1142],
+            //       foreignAssets: [1155] } },
+            // ]
+            return await this.transactionService.groupTransactionWithAlgosdk(body.from, body.transactions);
+        // return await this.craftGroupTransaction("Meet", transactions1);
     }
 
+    // withsdk
+    // [
+    //     Uint8Array(4) [ 138, 246, 86, 192 ],
+    //     Uint8Array(8) [
+    //       0, 0, 0,   0,
+    //       0, 0, 4, 131
+    //     ]
+    //   ]
+
+    // Withoutsdk
+    // [
+    //     Uint8Array(4) [ 138, 246, 86, 192 ],
+    //     Uint8Array(8) [
+    //       0, 0, 0,   0,
+    //       0, 0, 4, 132
+    //     ]
+    //   ]
     async craftGroupTransaction(from: string, transactions: Array<{
         type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out',
         params: any
     }>): Promise<{ txnId: string, error: string }> {
         
         const fromAddr = await this.transactionService.get_public_key({ from: from });
-        const suggestedParams = await this.transactionService.getSuggestedParams();
         
         const txnGroup = [];
         for (const txn of transactions) {
+            const suggestedParams = await this.transactionService.getSuggestedParams();
             switch (txn.type) {
                 case 'payment':
                     const paymentTx = this.crafterFactory.pay(Number(txn.params.amount), fromAddr, txn.params.to)
                                     .addFirstValidRound(suggestedParams.firstValid)
-                                    .addLastValidRound(suggestedParams.lastValid)
-                                    .get();
+                                    .addLastValidRound(suggestedParams.lastValid);
                     txnGroup.push(paymentTx);
                     break;
                 case 'asset-transfer':
                     const assetTransferTx = this.crafterFactory.transferAsset(fromAddr, txn.params.assetId, txn.params.to, Number(txn.params.amt))
                                     .addFirstValidRound(suggestedParams.firstValid)
-                                    .addLastValidRound(suggestedParams.lastValid)
-                                    .get();
+                                    .addLastValidRound(suggestedParams.lastValid);
                     txnGroup.push(assetTransferTx);
                     break;
                 case 'asset-create':
@@ -120,22 +139,20 @@ export class GroupTransaction {
                                         assetCreate =  assetCreate.addAssetId(assetId)
                                     }
                                     
-                    const assetCreateTx = assetCreate.get();
+                    const assetCreateTx = assetCreate;
                     txnGroup.push(assetCreateTx);
                     break;
 
                 case 'opt-in':
                     const optInTx = this.crafterFactory.transferAsset(fromAddr, txn.params.assetId, fromAddr, 0)
                                     .addFirstValidRound(suggestedParams.firstValid)
-                                    .addLastValidRound(suggestedParams.lastValid)
-                                    .get();
+                                    .addLastValidRound(suggestedParams.lastValid);
                     txnGroup.push(optInTx);
                     break;
                 case 'opt-out':
                     const optOutTx = this.crafterFactory.transferAsset(fromAddr, txn.params.assetId, fromAddr, 0)
                                     .addFirstValidRound(suggestedParams.firstValid)
-                                    .addLastValidRound(suggestedParams.lastValid)
-                                    .get();
+                                    .addLastValidRound(suggestedParams.lastValid);
                     txnGroup.push(optOutTx);
                     break;
 
@@ -148,36 +165,50 @@ export class GroupTransaction {
                         localSchema: txn.params.localSchema,
                         methodName: txn.params.methodName,
                         methodArgs: txn.params.methodArgs,
-                        applicationId: txn.params.applicationId
+                        applicationId: txn.params.applicationId,
+                        onComplete: txn.params.onComplete
                     })
-                                    
-                    txnGroup.push( appCallTx.txn);
+                    if (!appCallTx || !appCallTx.txn) {
+                        throw new Error(`Application call build failed: ${appCallTx?.error || 'unknown error'}`);
+                    }
+                    
+                    txnGroup.push(appCallTx.txn);
                     break;    
                 default:
                     break;
             }
         }
 
-        const groupId = this.encoderFactory.computeGroupId(txnGroup)
-
-        for (let i = 0; i < txnGroup.length; i++) {
-            txnGroup[i].addGroupId(groupId)
-        }
+        // Ensure all transactions are valid before computing group ID
+        // if (txnGroup.length === 0 || txnGroup.some((t) => !t || typeof t.encode !== 'function')) {
+        //     throw new Error('Invalid transaction group: one or more transactions are missing or malformed');
+        // }
+        console.log(txnGroup);
         
+        // Compute group ID over the encoded bytes as expected by the encoder
+        const preGroupBytes: Uint8Array[] = txnGroup.map(tx => tx.get().encode());
+        const groupId = this.encoderFactory.computeGroupId(preGroupBytes)
+
+        // Set group on each builder
+        for (let i = 0; i < txnGroup.length; i++) {
+            txnGroup[i] = txnGroup[i].addGroup(groupId)
+        }
+
+        // Cache unsigned bytes AFTER group has been set to avoid any mismatch
+        const unsignedBytes: Uint8Array[] = txnGroup.map(tx => tx.get().encode());
+
         const signedTxns = [];
         for (let i = 0; i < txnGroup.length; i++) {
-                try {
-                    // Sign the transaction using the wallet service
-                    const signedTxn = await this.transactionService.sign(txnGroup[i].encode(), from);
-                    
-                    // Add signature to the transaction
-                    const ready = this.crafterFactory.addSignature(txnGroup[i].encode(), signedTxn);
-                    signedTxns.push(ready);
-                } catch (error) {
-                    console.error(`Error signing transaction ${i+1}:`, error);
-                    throw new Error(`Failed to sign transaction ${i+1}: ${error.message}`);
-                }
+            try {
+                const toSign = unsignedBytes[i];
+                const sig = await this.transactionService.sign(toSign, from);
+                const ready = this.crafterFactory.addSignature(toSign, sig);
+                signedTxns.push(ready);
+            } catch (error) {
+                console.error(`Error signing transaction ${i+1}:`, error);
+                throw new Error(`Failed to sign transaction ${i+1}: ${error.message}`);
             }
+        }
 
             const bytestoSubmit = concatArrays(...signedTxns);
             const txnId = await this.walletService.submitTransaction(bytestoSubmit);

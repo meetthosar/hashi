@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common"
 import { VaultService } from "../vault/vault.service"
 import { HttpService } from "@nestjs/axios"
 import { ConfigService } from "@nestjs/config"
-import { AlgorandEncoder, AlgorandTransactionCrafter, AssetParamsBuilder, ApplicationCallTxBuilder, StateSchema, ApplicationCallTransaction } from '@algorandfoundation/algo-models'
+import { AlgorandEncoder, AlgorandTransactionCrafter, AssetParamsBuilder, ApplicationCallTxBuilder, StateSchema, ApplicationCallTransaction, IApplicationCallTxBuilder } from '@algorandfoundation/algo-models'
 // import { AssetParams, AssetParamsBuilder } from "src/chain/algorand.asset.params";
 import { WalletService } from "../wallet/wallet.service"
 import { EncoderFactory } from "../chain/encoder.factory"
@@ -307,6 +307,9 @@ export class TransactionService implements OnModuleInit {
         if (net === "mainnet") {
             return AlgorandClient.mainNet()
         }
+        if (net === "localnet") {
+            return AlgorandClient.defaultLocalNet()
+        }
         return AlgorandClient.testNet()
     }
 
@@ -482,150 +485,153 @@ export class TransactionService implements OnModuleInit {
      * @param transactions Array of transaction configurations
      * @returns Transaction ID and error information
      */
-    // async groupTransactionWithAlgosdk(
-    //     from: string,
-    //     transactions: Array<{
-    //         type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out',
-    //         params: any
-    //     }>
-    // ): Promise<{ txnIds:  Array<string>, error: string }> {
-    //     try {
-    //         const publicKey: Buffer = await this.walletService.getPublicKey(from);
-    //         const fromAddr = EncoderFactory.getEncoder("algorand").encodeAddress(publicKey);
-    //         const suggestedParams = await this.getSuggestedParams();
-    //         console.log(suggestedParams);
+    async groupTransactionWithAlgosdk(
+        from: string,
+        transactions: Array<{
+            type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out',
+            params: any
+        }>
+    ): Promise<{ txnIds:  Array<string>, error: string }> {
+        try {
+            const publicKey: Buffer = await this.walletService.getPublicKey(from);
+            const fromAddr = EncoderFactory.getEncoder("algorand").encodeAddress(publicKey);
+            const suggestedParams = await this.getSuggestedParams();
+            console.log(suggestedParams);
             
-    //         // Create individual transactions based on their type using algosdk directly
-    //         const txObjects = [];
+            // Create individual transactions based on their type using algosdk directly
+            const txObjects = [];
             
-    //         for (const txConfig of transactions) {
-    //             let txObject;
+            for (const txConfig of transactions) {
+                let txObject;
                 
-    //             switch (txConfig.type) {
-    //                 case 'payment':
-    //                     // Payment transaction using algosdk
-    //                     txObject = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-    //                         sender: fromAddr,
-    //                         receiver: txConfig.params.to,
-    //                         amount: txConfig.params.amount,
-    //                         suggestedParams: suggestedParams
-    //                     });
-    //                     break;
-    //                 case 'application':
-    //                     // Application call transaction using algosdk
-    //                     const appArgs = txConfig.params.appArgs ? 
-    //                         txConfig.params.appArgs.map(arg => new Uint8Array(Buffer.from(arg))) : 
-    //                         [];
-                            
-    //                     const accounts = txConfig.params.accounts || [];
+                switch (txConfig.type) {
+                    case 'payment':
+                        // Payment transaction using algosdk
+                        txObject = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+                            sender: fromAddr,
+                            receiver: txConfig.params.to,
+                            amount: txConfig.params.amount,
+                            suggestedParams: suggestedParams
+                        });
+                        break;
+                    case 'application':
+                        // Application call transaction using algosdk
+                        const appArgs = txConfig.params.appArgs ? 
+                            txConfig.params.appArgs.map(arg => new Uint8Array(Buffer.from(arg))) : 
+                            [];
+                        console.log(appArgs);
+                        
+                        const accounts = txConfig.params.accounts || [];
 
-    //                     var sp = suggestedParams;
-    //                     sp.fee = BigInt(txConfig.params.fee)
+                        var sp = suggestedParams;
+                        sp.fee = BigInt(txConfig.params.fee)
 
-    //                     txObject = algosdk.makeApplicationNoOpTxnFromObject({
-    //                         sender: fromAddr,
-    //                         appIndex: txConfig.params.appIndex,
-    //                         appArgs: appArgs,
-    //                         accounts: accounts,
-    //                         foreignApps: txConfig.params.foreignApps || [],
-    //                         foreignAssets: txConfig.params.foreignAssets || [],
-    //                         suggestedParams: sp,})
-    //                     break;
-    //                 case 'asset-transfer':
-    //                     // Asset transfer transaction using algosdk
-    //                     txObject = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-    //                         sender: fromAddr,
-    //                         receiver: txConfig.params.to,
-    //                         assetIndex: txConfig.params.assetIndex,
-    //                         amount: txConfig.params.amount,
-    //                         suggestedParams: suggestedParams
-    //                     });
-    //                     break;
-    //                 case 'asset-create':
-    //                     // Asset creation transaction using algosdk
-    //                     txObject = algosdk.makeAssetCreateTxnWithSuggestedParamsFromObject({
-    //                         sender: fromAddr,
-    //                         total: txConfig.params.total,
-    //                         decimals: txConfig.params.decimals,
-    //                         defaultFrozen: txConfig.params.defaultFrozen || false,
-    //                         unitName: txConfig.params.unitName,
-    //                         assetName: txConfig.params.assetName,
-    //                         manager: txConfig.params.manager || fromAddr,
-    //                         reserve: txConfig.params.reserve || fromAddr,
-    //                         freeze: txConfig.params.freeze || fromAddr,
-    //                         clawback: txConfig.params.clawback || fromAddr,
-    //                         suggestedParams: suggestedParams
-    //                     });
-    //                     break;
-    //                 case 'opt-in':
-    //                     // Asset opt-in transaction using algosdk
-    //                     txObject = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-    //                         sender: fromAddr,
-    //                         receiver: fromAddr,
-    //                         assetIndex: txConfig.params.assetIndex,
-    //                         amount: 0,
-    //                         suggestedParams: suggestedParams
-    //                     });
-    //                     break;
-    //                 case 'opt-out':
-    //                     // Asset opt-out transaction using algosdk
-    //                     txObject = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-    //                         sender: fromAddr,
-    //                         receiver: txConfig.params.closeTo,
-    //                         assetIndex: txConfig.params.assetIndex,
-    //                         amount: 0,
-    //                         closeRemainderTo: txConfig.params.closeTo,
-    //                         suggestedParams: suggestedParams
-    //                     });
-    //                     break;
-    //                 default:
-    //                     throw new Error(`Unsupported transaction type: ${txConfig.type}`);
-    //             }
+                        txObject = algosdk.makeApplicationNoOpTxnFromObject({
+                            sender: fromAddr,
+                            appIndex: txConfig.params.appIndex,
+                            appArgs: appArgs,
+                            accounts: accounts,
+                            foreignApps: txConfig.params.foreignApps || [],
+                            foreignAssets: txConfig.params.foreignAssets || [],
+                            suggestedParams: sp,})
+                        break;
+                    case 'asset-transfer':
+                        // Asset transfer transaction using algosdk
+                        txObject = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+                            sender: fromAddr,
+                            receiver: txConfig.params.to,
+                            assetIndex: txConfig.params.assetIndex,
+                            amount: txConfig.params.amount,
+                            suggestedParams: suggestedParams
+                        });
+                        break;
+                    case 'asset-create':
+                        // Asset creation transaction using algosdk
+                        txObject = algosdk.makeAssetCreateTxnWithSuggestedParamsFromObject({
+                            sender: fromAddr,
+                            total: txConfig.params.total,
+                            decimals: txConfig.params.decimals,
+                            defaultFrozen: txConfig.params.defaultFrozen || false,
+                            unitName: txConfig.params.unitName,
+                            assetName: txConfig.params.assetName,
+                            manager: txConfig.params.manager || fromAddr,
+                            reserve: txConfig.params.reserve || fromAddr,
+                            freeze: txConfig.params.freeze || fromAddr,
+                            clawback: txConfig.params.clawback || fromAddr,
+                            suggestedParams: suggestedParams
+                        });
+                        break;
+                    case 'opt-in':
+                        // Asset opt-in transaction using algosdk
+                        txObject = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+                            sender: fromAddr,
+                            receiver: fromAddr,
+                            assetIndex: txConfig.params.assetIndex,
+                            amount: 0,
+                            suggestedParams: suggestedParams
+                        });
+                        break;
+                    case 'opt-out':
+                        // Asset opt-out transaction using algosdk
+                        txObject = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+                            sender: fromAddr,
+                            receiver: txConfig.params.closeTo,
+                            assetIndex: txConfig.params.assetIndex,
+                            amount: 0,
+                            closeRemainderTo: txConfig.params.closeTo,
+                            suggestedParams: suggestedParams
+                        });
+                        break;
+                    default:
+                        throw new Error(`Unsupported transaction type: ${txConfig.type}`);
+                }
                 
-    //             txObjects.push(txObject);
-    //         }
-            
-    //         // Assign group ID using algosdk
-    //         const txnGroup = algosdk.assignGroupID(txObjects);
-            
-    //         // Sign all transactions
-    //         const signedTxns = [];
+                txObjects.push(txObject);
+            }
 
-    //         const txnCrafter = new AlgorandTransactionCrafter('testnet-v1.0', 'SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=')
+            console.log(txObjects);
             
-    //         for (let i = 0; i < txnGroup.length; i++) {
-    //             try {
-    //                 // Sign the transaction using the wallet service
-    //                 const signedTxn = await this.sign(txnGroup[i].bytesToSign(), from);
+            // Assign group ID using algosdk
+            const txnGroup = algosdk.assignGroupID(txObjects);
+            
+            // Sign all transactions
+            const signedTxns = [];
+
+            const txnCrafter = new AlgorandTransactionCrafter('testnet-v1.0', 'SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=')
+            
+            for (let i = 0; i < txnGroup.length; i++) {
+                try {
+                    // Sign the transaction using the wallet service
+                    const signedTxn = await this.sign(txnGroup[i].bytesToSign(), from);
                     
-    //                 // Add signature to the transaction
-    //                 const ready = await txnCrafter.addSignature(txnGroup[i].bytesToSign(), signedTxn);
-    //                 signedTxns.push(ready);
-    //             } catch (error) {
-    //                 console.error(`Error signing transaction ${i+1}:`, error);
-    //                 throw new Error(`Failed to sign transaction ${i+1}: ${error.message}`);
-    //             }
-    //         }
+                    // Add signature to the transaction
+                    const ready = await txnCrafter.addSignature(txnGroup[i].bytesToSign(), signedTxn);
+                    signedTxns.push(ready);
+                } catch (error) {
+                    console.error(`Error signing transaction ${i+1}:`, error);
+                    throw new Error(`Failed to sign transaction ${i+1}: ${error.message}`);
+                }
+            }
             
-    //         // Submit the signed transaction group
-    //         try {
-    //             const bytestoSubmit = concatArrays(...signedTxns);
-    //             const txnId = await this.walletService.submitTransaction(bytestoSubmit);
+            // Submit the signed transaction group
+            try {
+                const bytestoSubmit = concatArrays(...signedTxns);
+                const txnId = await this.walletService.submitTransaction(bytestoSubmit);
 
-    //             var txnGroupIds = [];
-    //             for (let i = 0; i < txnGroup.length; i++) {
-    //                 txnGroupIds.push(txnGroup[i].txID());
-    //             }
-    //             return { txnIds: txnGroupIds, error: null };
-    //         } catch (error) {
-    //             console.error('Error in group transaction processing:', error);
-    //             return { txnIds: [], error: error.message || 'Unknown error in group transaction' };
-    //         }
-    //     } catch (error) {
-    //         console.error('Error in groupTransactionWithAlgosdk:', error);
-    //         return { txnIds: [], error: error.message || 'Unknown error' };
-    //     }
-    // }
+                var txnGroupIds = [];
+                for (let i = 0; i < txnGroup.length; i++) {
+                    txnGroupIds.push(txnGroup[i].txID());
+                }
+                return { txnIds: txnGroupIds, error: null };
+            } catch (error) {
+                console.error('Error in group transaction processing:', error);
+                return { txnIds: [], error: error.message || 'Unknown error in group transaction' };
+            }
+        } catch (error) {
+            console.error('Error in groupTransactionWithAlgosdk:', error);
+            return { txnIds: [], error: error.message || 'Unknown error' };
+        }
+    }
     
     // async groupTransaction(
     //     from: string,
@@ -776,57 +782,71 @@ export class TransactionService implements OnModuleInit {
      */
     async applicationCall(params: {
         from: string,
-        approvalProgram: string,
-        clearProgram: string,
-        globalSchema: { numUint: number, numByteSlice: number },
-        localSchema: { numUint: number, numByteSlice: number },
+        approvalProgram?: string,
+        clearProgram?: string,
+        globalSchema?: { numUint: number, numByteSlice: number },
+        localSchema?: { numUint: number, numByteSlice: number },
         methodName?: string,
-        methodArgs?: string, // JSON string of arguments
-        applicationId?: number
-    }): Promise<{ txn : ApplicationCallTransaction | null, error: string | undefined } > {
+        // Accept either a JSON string or an already parsed array of [value, type]
+        methodArgs?: string | any[],
+        applicationId?: number,
+        onComplete?: number,
+        accounts?: string[],
+        foreignApps?: number[],
+        foreignAssets?: number[],
+        fee?: number
+    }): Promise<{ txn : IApplicationCallTxBuilder | null, error: string | undefined } > {
         try {
+            
             // Validate input
             if (!params.from) {
-                return { txn: null, error: 'Sender address (from) is required' };
+                throw new Error('Sender address (from) is required');
             }
 
-            if (!params.approvalProgram) {
-                return { txn: null, error: 'Approval program is required' };
-            }
+            const isExistingAppCall = typeof params.applicationId === 'number' && params.applicationId > 0;
 
-            if (!params.clearProgram) {
-                return { txn: null, error: 'Clear program is required' };
-            }
+            // Only require programs and schema for app creation (no applicationId provided)
+            if (!isExistingAppCall) {
+                if (!params.approvalProgram) {
+                    throw new Error('Approval program is required for application creation');
+                }
 
-            if (!params.globalSchema) {
-                return { txn: null, error: 'Global schema is required' };
-            }
+                if (!params.clearProgram) {
+                    throw new Error('Clear program is required for application creation');
+                }
 
-            if (!params.localSchema) {
-                return { txn: null, error: 'Local schema is required' };
-            }
+                if (!params.globalSchema) {
+                    throw new Error('Global schema is required for application creation');
+                }
 
+                if (!params.localSchema) {
+                    throw new Error('Local schema is required for application creation');
+                }
+            }
+            
             // Parse method arguments if provided
             let methodArgs: any[] = [];
             if (params.methodArgs) {
                 try {
-                    methodArgs = JSON.parse(params.methodArgs);
+                    if (typeof params.methodArgs === 'string') {
+                        methodArgs = JSON.parse(params.methodArgs);
+                    } else if (Array.isArray(params.methodArgs)) {
+                        methodArgs = params.methodArgs;
+                    } else {
+                        throw new Error('methodArgs must be a JSON string or an array');
+                    }
                 } catch (error) {
-                    return { txn: null, error: 'Invalid JSON in methodArgs' };
+                    throw new Error('Invalid JSON in methodArgs');
                 }
             }
 
             // Extract approval and clear programs from bytecode
             const approvalProgram = params.approvalProgram 
                     ? algosdk.base64ToBytes(params.approvalProgram) 
-                    : new Uint8Array(0);
+                    : undefined;
             const clearProgram = params.clearProgram 
                     ? algosdk.base64ToBytes(params.clearProgram) 
-                    : new Uint8Array(0);
-
-            if (!approvalProgram || !clearProgram) {
-                return { txn: null, error: 'Approval and clear programs are required' };
-            }
+                    : undefined;
 
             // Extract schema information - only set non-zero values
             let globalSchema: StateSchema | undefined;
@@ -857,7 +877,7 @@ export class TransactionService implements OnModuleInit {
 
             // Check if this is a bare application creation (no method call)
             const isBareCreation = params.methodName == null || params.methodName == undefined || params.methodName == "";
-            
+
             let encodedArgs: Uint8Array[] = [];
             
             if (!isBareCreation && params.methodName) {
@@ -867,17 +887,40 @@ export class TransactionService implements OnModuleInit {
                 
                 if (methodArgs && methodArgs.length > 0) {
                     for (let i = 0; i < methodArgs.length; i++) {
-                        const arg = methodArgs[i][1];
-                        if (arg === 'uint64') {
-                            encodedArgs.push(algosdk.encodeUint64(methodArgs[i][0]));
-                        } else if (arg === 'string') {
-                            encodedArgs.push(new Uint8Array(Buffer.from(methodArgs[i][0])));
+                        const [val, argType] = methodArgs[i];
+                        if (argType === 'uint64') {
+                            // Coerce to number/bigint to satisfy algosdk.encodeUint64
+                            const n = typeof val === 'string' ? Number(val) : val;
+                            console.log('Value of arg', n);
+                            encodedArgs.push(algosdk.encodeUint64(n));
+                        } else if (argType === 'addr' || argType === 'address') {
+                            // ABI address is 32-byte public key
+                            const pk = new AlgorandEncoder().decodeAddress(String(val));
+                            encodedArgs.push(pk);
+                        } else if (argType === 'bytes' || argType === 'byte[]') {
+                            // Support base64 or utf8 input; prefer base64 if it decodes
+                            try {
+                                const b = Buffer.from(String(val), 'base64');
+                                if (b.length > 0) {
+                                    encodedArgs.push(new Uint8Array(b));
+                                } else {
+                                    encodedArgs.push(new Uint8Array(Buffer.from(String(val))));
+                                }
+                            } catch {
+                                encodedArgs.push(new Uint8Array(Buffer.from(String(val))));
+                            }
+                        } else if (argType === 'string') {
+                            encodedArgs.push(new Uint8Array(Buffer.from(String(val))));
                         } else {
-                            // Default encoding for other types
-                            encodedArgs.push(new Uint8Array(Buffer.from(methodArgs[i][0])));
+                            // Default: treat as string/byte input
+                            encodedArgs.push(new Uint8Array(Buffer.from(String(val))));
                         }
                     }
+                    
                 }
+                console.log(encodedArgs);
+                
+                
             } else if (!isBareCreation) {
                 return { txn: null, error: 'Either provide a methodName or ensure the contract supports bare creation with NoOp' };
             }
@@ -889,11 +932,16 @@ export class TransactionService implements OnModuleInit {
             // Create application call transaction using ApplicationTxBuilder directly
             let applicationCallTransaction = new ApplicationCallTxBuilder(this.genesisId, this.genesisHash)
                 .addSender(fromAddr)
-                .addApprovalProgram(approvalProgram)
-                .addClearStateProgram(clearProgram)
                 .addFirstValidRound(BigInt(suggestedParams.firstValid))
                 .addLastValidRound(BigInt(suggestedParams.lastValid))
-                .addFee(BigInt(Number(suggestedParams.fee) < 1000 ? 1000 : suggestedParams.fee));
+                .addFee(BigInt(params.fee && params.fee > 0 ? params.fee : (Number(suggestedParams.fee) < 1000 ? 1000 : suggestedParams.fee)));
+
+            // Only add programs for creation
+            if (!isExistingAppCall) {
+                applicationCallTransaction = applicationCallTransaction
+                    .addApprovalProgram(approvalProgram!)
+                    .addClearStateProgram(clearProgram!);
+            }
 
             // Add global and local schema only if they have non-zero values
             if (globalSchema) {
@@ -903,19 +951,38 @@ export class TransactionService implements OnModuleInit {
                 applicationCallTransaction = applicationCallTransaction.addLocalSchema(localSchema);
             }
 
-            // Add application arguments if any
+            // Add application arguments if any (expects Uint8Array[])
             if (encodedArgs && encodedArgs.length > 0) {
                 applicationCallTransaction = applicationCallTransaction.addApplicationArgs(encodedArgs);
             }
 
-            if (params.applicationId > 0 || params.applicationId !== undefined) {
-                applicationCallTransaction.addApplicationId(BigInt(params.applicationId));
+            if (typeof params.applicationId === 'number' && params.applicationId > 0) {
+                applicationCallTransaction = applicationCallTransaction.addApplicationId(BigInt(params.applicationId));
             }
 
-            const txn = applicationCallTransaction.get();
+            // Optional references and flags
+            if (params.accounts && params.accounts.length > 0) {
+                applicationCallTransaction = applicationCallTransaction.addAccounts(params.accounts);
+            }
+            if (params.foreignApps && params.foreignApps.length > 0) {
+                const fa = params.foreignApps.map((n) => BigInt(n));
+                applicationCallTransaction = applicationCallTransaction.addForeignApps(fa);
+            }
+            if (params.foreignAssets && params.foreignAssets.length > 0) {
+                const fas = params.foreignAssets.map((n) => BigInt(n));
+                applicationCallTransaction = applicationCallTransaction.addForeignAssets(fas);
+            }
+            if (typeof params.onComplete === 'number' && params.onComplete > 0) {
+                applicationCallTransaction = applicationCallTransaction.addOnComplete(params.onComplete);
+            }
+console.log(applicationCallTransaction);
+
+            const txn = applicationCallTransaction;
             return {txn : txn, error : null};
 
         } catch (error) {
+            console.log(error);
+            
             console.error('Error in applicationCall:', error);
             const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
             return { txn : null, error : errorMessage };
