@@ -41,17 +41,67 @@ export class GroupTransaction {
         //         foreignApps: [1142],appArgs: [new Uint8Array(sha512_256.array(Buffer.from("opt_in_activity_token(pay,uint64)void")).slice(0, 4)), algosdk.encodeUint64(1156)],
         //         foreignAssets: [1156] } },
         //     ]
-            // const transactions1: Array<{ type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out', params: any }> = [
-            //     { type: "payment", params: { to: "46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM", amount: 101000 } },
-            //   //   { type: "opt-in", params: { assetId: 1140 } },
-            //     { type: "application", params: { appIndex: 1142, 
-            //         fee: 2000,
-            //         appArgs: [new Uint8Array(sha512_256.array(Buffer.from("opt_in_activity_token(pay,uint64)void")).slice(0, 4)), algosdk.encodeUint64(1155)],
-            //     //   methodName: "opt_in_activity_token(pay, uint64)void", methodArgs: [[1140, "uint64"]], 
-            //       accounts: ["46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM"],
-            //       foreignApps: [1142],
-            //       foreignAssets: [1155] } },
-            // ]
+            const transactions1: Array<{ type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out', params: any }> = [
+                { type: "payment", params: { to: "46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM", amount: 101000 } },
+                { type: "application", params: { appIndex: 1142, 
+                    fee: 2000,
+                    appArgs: [new Uint8Array(sha512_256.array(Buffer.from("opt_in_activity_token(pay,uint64)void")).slice(0, 4)), algosdk.encodeUint64(1155)],
+                  accounts: ["46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM"],
+                  foreignApps: [1142],
+                  foreignAssets: [1155] } },
+            ]
+            // const prefix = new TextEncoder().encode("act_");           // utf8 bytes for "act_"
+            // const idBytes = algosdk.encodeUint64(11); 
+            // console.log("prefix", prefix)
+            // console.log("idBytes", idBytes)
+            const transactions: Array<{ type: 'payment' | 'application' | 'asset-transfer' | 'asset-create' | 'opt-in' | 'opt-out', params: any }> = [
+                {
+                  type: "payment",
+                  params: {
+                    to: "SD24T2FFA23VCXBIELSJ763PLQRTK7QEH2Q7QP7V2QE5LIS5DMF6HNHFFA", 
+                    amount: 200000
+                  }
+                },
+                {
+                  type: "application",
+                  params: {
+                    appIndex: 1160,
+                    fee: 2000,
+                    appArgs: [
+                        new Uint8Array(
+                          sha512_256
+                            .array(
+                              Buffer.from(
+                                "add_activity(pay,uint64,address,address,uint64,uint64)void"
+                              )
+                            )
+                            .slice(0, 4)
+                        ),
+                        algosdk.encodeUint64(12n), // cc_activity_id
+                        algosdk.decodeAddress(
+                          "46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM"
+                        ).publicKey, // cluster_head_address
+                        algosdk.decodeAddress(
+                          "46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM"
+                        ).publicKey, // territory_officer_address
+                        algosdk.encodeUint64(50n), // no_of_attendees
+                        algosdk.encodeUint64(1155n), // activity_token
+                      ],
+                    boxes: [
+                      {
+                        appIndex: 1160,
+                        name: new Uint8Array([
+                            ...Buffer.from("act_"),
+                            ...algosdk.encodeUint64(12n),
+                          ]),
+                      }
+                    ],
+                    accounts: ["46L2HQNPQR2YPYDO7ZEDP4N35RAFZNFNVBRAPBW7CXABXCRXFIF4HBBLIM", "K6T5O66UU6P4V6UUMMPFYYDNBMANCXXZUI222SW6SOC4TAU6HV2WF2AKWE"],
+                    foreignApps: [1160],
+                    foreignAssets: [1155]
+                  }
+                }
+              ];
             return await this.transactionService.groupTransactionWithAlgosdk(body.from, body.transactions);
         // return await this.craftGroupTransaction("Meet", transactions1);
     }
